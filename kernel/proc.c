@@ -274,6 +274,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  np->mask = p->mask;
 
   np->parent = p;
 
@@ -692,4 +693,12 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+trace(int mask) 
+{
+  struct proc *p = myproc();
+  p->mask = mask;
+  return 0;
 }
