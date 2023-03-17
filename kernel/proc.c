@@ -702,3 +702,20 @@ trace(int mask)
   p->mask = mask;
   return 0;
 }
+
+int
+proc_num()
+{
+  int n = 0;
+
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p -> state != UNUSED) {
+      n++;
+    }
+    release(&p->lock);
+  }
+
+  return n;
+}
