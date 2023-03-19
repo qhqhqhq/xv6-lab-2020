@@ -121,6 +121,12 @@ found:
     return 0;
   }
 
+  // fields about sigalarm init
+  p->iticks = 0;
+  p->handler = 0;
+  p->pticks = 0;
+  p->alarm_temp = 0;
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));

@@ -78,7 +78,18 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
+  {
+    if (p->pticks < p->iticks) {
+      p->pticks++;
+      if (p->pticks == p->iticks){
+        p->alarm_temp = kalloc();
+        memmove(p->alarm_temp, p->trapframe, sizeof(struct trapframe));
+        p->trapframe->epc = p->handler;
+
+      }
+    }
     yield();
+  }
 
   usertrapret();
 }
