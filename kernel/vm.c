@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -14,6 +16,44 @@ pagetable_t kernel_pagetable;
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
+
+// user kernel page table init
+pagetable_t
+allocukpgtbl()
+{
+  pagetable_t pgtbl = (pagetable_t) kalloc();
+  memset(pgtbl, 0, PGSIZE);
+
+  if (mappages(pgtbl, UART0, PGSIZE, UART0, PTE_R | PTE_W) < 0) {
+    panic("ukpginit: mappages");
+  }
+
+  if (mappages(pgtbl, VIRTIO0, PGSIZE, VIRTIO0, PTE_R | PTE_W) < 0) {
+    panic("ukpginit: mappages");
+  }
+
+  if (mappages(pgtbl, CLINT, 0x10000, CLINT, PTE_R | PTE_W) < 0) {
+    panic("ukpginit: mappages");
+  }
+
+  if (mappages(pgtbl, PLIC, 0x400000, PLIC, PTE_R | PTE_W) < 0) {
+    panic("ukpginit: mappages");
+  }
+
+  if (mappages(pgtbl, KERNBASE, (uint64)etext-KERNBASE, KERNBASE, PTE_R | PTE_X) < 0) {
+    panic("ukpginit: mappages");
+  }
+
+  if (mappages(pgtbl, (uint64)etext, PHYSTOP-(uint64)etext, (uint64)etext, PTE_R|PTE_W) < 0) {
+    panic("ukpginit: mappages");
+  }
+
+  if (mappages(pgtbl, TRAMPOLINE, PGSIZE, (uint64)trampoline, PTE_R | PTE_X) < 0) {
+    panic("ukpginit: mappages");
+  }
+
+  return pgtbl;
+}
 
 /*
  * create a direct-map page table for the kernel.
@@ -131,8 +171,8 @@ kvmpa(uint64 va)
   uint64 off = va % PGSIZE;
   pte_t *pte;
   uint64 pa;
-  
-  pte = walk(kernel_pagetable, va, 0);
+  // pte = walk(kernel_pagetable, va, 0);
+  pte = walk(myproc()->kpagetable, va, 0);
   if(pte == 0)
     panic("kvmpa");
   if((*pte & PTE_V) == 0)
@@ -471,4 +511,19 @@ vmprint(pagetable_t pgtbl)
       walkprint(pte, i, 2);
     }
   }
+}
+
+void
+freekpagetable(pagetable_t pagetable)
+{
+  uvmunmap(pagetable, UART0, 1, 0);
+  uvmunmap(pagetable, VIRTIO0, 1, 0);
+  uvmunmap(pagetable, CLINT, PGROUNDUP(0x10000)/PGSIZE,0);
+  uvmunmap(pagetable, PLIC, PGROUNDUP(0x400000)/PGSIZE,0);
+  uvmunmap(pagetable, KERNBASE, PGROUNDUP((uint64)etext-KERNBASE)/PGSIZE,0);
+  uvmunmap(pagetable, (uint64)etext, PGROUNDUP(PHYSTOP - (uint64)etext)/PGSIZE,0);
+  uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+  uvmunmap(pagetable, KSTACK(0), 1, 1);
+  freewalk(pagetable);
+
 }
