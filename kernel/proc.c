@@ -154,6 +154,10 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+
+  if(p->kstack)
+	  uvmunmap(p->kpagetable, p->kstack, 1, 1);
+  p->kstack = 0;
   if(p->kpagetable)
     freekpagetable(p->kpagetable);
   p->pagetable = 0;
@@ -235,6 +239,7 @@ userinit(void)
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
+  ukpgtblmap(p->pagetable, p->kpagetable, 0, p->sz);
 
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
@@ -261,8 +266,14 @@ growproc(int n)
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
+    if(ukpgtblmap(p->pagetable, p->kpagetable, sz-n, sz) < 0) {
+      return -1;
+    }
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
+    if(n >= PGSIZE) {
+      uvmunmap(p->kpagetable, PGROUNDUP(sz), n/PGSIZE, 0);
+    }
   }
   p->sz = sz;
   return 0;
@@ -289,6 +300,11 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  if (ukpgtblmap(np->pagetable, np->kpagetable, 0, np->sz) < 0){
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
 
   np->parent = p;
 
