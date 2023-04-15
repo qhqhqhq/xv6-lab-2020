@@ -457,6 +457,9 @@ uint64 lazyalloc(struct proc * p, uint64 va){
   if(va >= p->sz || va < PGROUNDUP(p->trapframe->sp)){
     return 0;
   }
+  if (va >= MAXVA) {
+    return 0;
+  }
   char * mem;
   uint64 a = PGROUNDDOWN(va);
   mem = kalloc();
